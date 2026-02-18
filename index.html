@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NearbyShare - Share Tickets & More Within 5km</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; color: #333; }
+        header { background-color: #2196F3; color: white; padding: 20px; text-align: center; position: relative; }
+        .logout-btn { position: absolute; top: 10px; right: 10px; background-color: #ff5722; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; }
+        .logout-btn:hover { background-color: #d84315; }
+        .container { max-width: 1200px; margin: 20px auto; padding: 20px; background: white; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; }
+        input, select, textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        button { background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background-color: #0b7dda; }
+        .item { border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 4px; }
+        .item h3 { margin: 0; }
+        .item p { margin: 5px 0; }
+        .claim-btn { background-color: #ff9800; }
+        .claim-btn:hover { background-color: #e68900; }
+        .chat-btn { background-color: #4CAF50; margin-left: 10px; }
+        .chat-btn:hover { background-color: #45a049; }
+        footer { text-align: center; padding: 10px; background-color: #333; color: white; margin-top: 20px; }
+        .location-info { font-size: 14px; color: #666; }
+        /* Auth Modal Styles */
+        .modal { display: none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.4); }
+        .modal-content { background-color: white; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 400px; border-radius: 8px; }
+        .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close:hover { color: black; }
+        .tab { display: inline-block; padding: 10px; cursor: pointer; background-color: #f1f1f1; border-radius: 4px 4px 0 0; }
+        .tab.active { background-color: white; }
+        .tab-content { display: none; padding: 20px; }
+        .tab-content.active { display: block; }
+        /* Chat Modal Styles */
+        .chat-messages { max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
+        .message { margin-bottom: 10px; }
+        .message strong { color: #2196F3; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>NearbyShare</h1>
+        <p>Share and find free movie tickets, bus tickets, and more with people nearby (within 5km)!</p>
+        <button class="logout-btn" id="logoutBtn" style="display: none;" onclick="logout()">Logout</button>
+    </header>
+    
+    <div class="container" id="mainContent" style="display: none;">
+        <div id="locationStatus" class="location-info">Getting your location...</div>
+        
+        <h2>Share an Item</h2>
+        <form id="postForm">
+            <div class="form-group">
+                <label for="title">Item Title (e.g., Movie Ticket):</label>
+                <input type="text" id="title" required>
+            </div>
+            <div class="form-group">
+                <label for="category">Category:</label>
+                <select id="category" required>
+                    <option value="">Select</option>
+                    <option value="movie">Movie Ticket</option>
+                    <option value="bus">Bus Ticket</option>
+                    <option value="event">Event Ticket</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="description">Description (e.g., Theater name, date, time):</label>
+                <textarea id="description" rows="4" required></textarea>
+            </div>
+            <button type="submit">Share Nearby</button>
+        </form>
+        
+        <h2>Nearby Items (Within 5km)</h2>
+        <div id="itemsList"></div>
+    </div>
+    
+    <!-- Auth Modal -->
+    <div id="authModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeAuth()">&times;</span>
+            <div class="tab active" onclick="switchTab('login')">Login</div>
+            <div class="tab" onclick="switchTab('signup')">Sign Up</div>
+            <div id="loginTab" class="tab-content active">
+                <h3>Login</h3>
+                <div class="form-group">
+                    <label for="loginUsername">Username:</label>
+                    <input type="text" id="loginUsername" required>
+                </div>
+                <div class="form-group">
+                    <label for="loginPassword">Password:</label>
+                    <input type="password" id="loginPassword" required>
+                </div>
+                <button onclick="login()">Login</button>
+            </div>
+            <div id="signupTab" class="tab-content">
+                <h3>Sign Up</h3>
+                <div class="form-group">
+                    <label for="signupUsername">Username:</label>
+                    <input type="text" id="signupUsername" required>
+                </div>
+                <div class="form-group">
+                    <label for="signupPassword">Password:</label>
+                    <input type="password" id="signupPassword" required>
+                </div>
+                <button onclick="signup()">Sign Up</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Chat Modal -->
+    <div id="chatModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeChat()">&times;</span>
+            <h3>Chat about this Item</h3>
+            <div id="chatMessages" class="chat-messages"></div>
+            <textarea id="chatInput" placeholder="Type your message..." rows="3"></textarea>
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+    
+    <footer>
+        <p>&copy; 2023 NearbyShare. All shares must be legal and free. Location data is used only for proximity. Use at your own risk. <a href="#" style="color: white;">Privacy Policy</a></p>
+    </footer>
+    
+    <script>
+        let userLat, userLng;
+        let currentUser = null;
+        let items = JSON.parse(localStorage.getItem('nearbyItems')) || [];
+        let users = JSON.parse(localStorage.getItem('users')) || [];
+        let currentChatIndex = null;
+        
+        // Check if user is logged in
+        function checkLogin() {
+            const loggedInUser = localStorage.getItem('currentUser');
+            if (loggedInUser) {
+                currentUser = loggedInUser;
+                document.getElementById('mainContent').style.display = 'block';
+                document.getElementById('logoutBtn').style.display = 'block';
+                document.getElementById('authModal').style.display = 'none';
+                initLocation();
+            } else {
+                document.getElementById('authModal').style.display = 'block';
+            }
+        }
+        
+        // Signup
+        function signup() {
+            const username = document.getElementById('signupUsername').value;
+            const password = document.getElementById('signupPassword').value;
+            if (username && password) {
+                if (users.find(u => u.username === username)) {
+                    alert('Username already exists.');
+                    return;
+                }
+                users.push({ username, password });
+                localStorage.setItem('users', JSON.stringify(users));
+                alert('Account created! Please login.');
+                switchTab('login');
+            }
+        }
+        
+        // Login
+        function login() {
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+            const user = users.find(u => u.username === username && u.password === password);
+            if (user) {
+                currentUser = username;
+                localStorage.setItem('currentUser', username);
+                checkLogin();
+            } else {
+                alert('Invalid credentials.');
+            }
+        }
+        
+        // Logout
+        function logout() {
+            currentUser = null;
+            localStorage.removeItem('currentUser');
+            document.getElementById('mainContent').style.display = 'none';
+            document.getElementById('logoutBtn').style.display = 'none';
+            checkLogin();
+        }
+        
+        // Switch tabs
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
+            document.getElementById(`${tab}Tab`).classList.add('active');
+        }
+        
+        // Close auth modal
+        function closeAuth() {
+            // Prevent closing if not logged in
+        }
+        
+        // Get user's location
+        function initLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(function(position) {
+                    userLat = position.coords.latitude;
+                    userLng = position.coords.longitude;
+                    document.getElementById('locationStatus').textContent = `Your location: ${userLat.toFixed(4)}, ${userLng.toFixed(4)}`;
+                    displayItems();
+                }, function(error) {
+                    document.getElementById('locationStatus').textContent = 'Location access denied. Enable it to see nearby shares.';
+                });
+            } else {
+                document.getElementById('locationStatus').textContent = 'Geolocation not supported.';
+            }
+        }
+        
+        // Haversine formula to calculate distance in km
+        function getDistance(lat1, lng1, lat2, lng2) {
+            const R = 6371; // Earth's radius in km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLng = (lng2 - lng1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng/2) * Math.sin(dLng/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+        
+        // Function to display items within 5km
+        function displayItems() {
+            if (!userLat || !userLng) return;
+            const list = document.getElementById('itemsList');
+            list.innerHTML = '';
+            items.forEach((item, index) => {
+                const distance = getDistance(userLat, userLng, item.lat, item.lng);
+                if (distance <= 5) {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'item';
+                    itemDiv.innerHTML = `
+                        <h3>${item.title}</h3>
+                        <p><strong>Category:</strong> ${item.category}</p>
+                        <p>${item.description}</p>
+                        <p><strong>Distance:</strong> ${distance.toFixed(2)} km away | <strong>Shared by:</strong> ${item.user}</p>
+                        <button class="claim-btn" onclick="claimItem(${index})">Claim/Contact</button>
+                        <button class="chat-btn" onclick="openChat(${index})">Chat</button>
+                    `;
+                    list.appendChild(itemDiv);
+                }
+            });
+            if (list.innerHTML === '') {
+                list.innerHTML = '<p>No nearby items found. Share one!</p>';
+            }
+        }
+        
+        // Handle form submission
+        document.getElementById('postForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            if (!userLat || !userLng) {
+                alert('Location not available. Enable geolocation.');
+                return;
+            }
+            const title = document.getElementById('title').value;
+            const category = document.getElementById('category').value;
+            const description = document.getElementById('description').value;
+            items.push({ title, category, description, lat: userLat, lng: userLng, user: currentUser, messages: [] });
+            localStorage.setItem('nearbyItems', JSON.stringify(items));
+            displayItems();
+            this.reset();
+            alert('Item shared nearby!');
+        });
+        
+        // Claim item (simple remove for demo)
+        function claimItem(index) {
+            if (confirm('Claim this item? In a real app, this would contact the sharer.')) {
+                items.splice(index, 1);
+                localStorage.setItem('nearbyItems', JSON.stringify(items));
+                displayItems();
+                alert('Item claimed!');
+            }
+        }
+        
+        // Open chat modal
+        function openChat(index) {
+            currentChatIndex = index;
+            document.getElementById('chatModal').style.display = 'block';
+            displayMessages();
+        }
+        
+        // Close chat modal
+        function closeChat() {
+            document.getElementById('chatModal').style.display = 'none';
+            currentChatIndex = null;
+        }
+        
+        // Display messages in chat
+        function displayMessages() {
+            const messagesDiv = document.getElementById('chatMessages');
+            messagesDiv.innerHTML = '';
+            if (currentChatIndex !== null && items[currentChatIndex].messages) {
+                items[currentChatIndex].messages.forEach(msg => {
+                    const msgDiv = document.createElement('div');
+                    msgDiv.className = 'message';
+                    msgDiv.innerHTML = `<strong>${currentUser}:</strong> ${msg}`;
+                    messagesDiv.appendChild(msgDiv);
+                });
+            }
+        }
+        
+        // Send message
+        function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            if (message && currentChatIndex !== null) {
+                items[currentChatIndex].messages.push(message);
+                localStorage.setItem('nearbyItems', JSON.stringify(items));
+                displayMessages();
+                input.value = '';
+            }
+        }
+        
+        // Initial check
+        checkLogin();
+    </script>
+</body>
+</html>
