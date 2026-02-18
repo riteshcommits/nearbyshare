@@ -24,7 +24,6 @@
         .chat-btn:hover { background-color: #45a049; }
         footer { text-align: center; padding: 10px; background-color: #333; color: white; margin-top: 20px; }
         .location-info { font-size: 14px; color: #666; }
-        /* Auth Modal Styles */
         .modal { display: none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.4); }
         .modal-content { background-color: white; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 400px; border-radius: 8px; }
         .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
@@ -33,11 +32,41 @@
         .tab.active { background-color: white; }
         .tab-content { display: none; padding: 20px; }
         .tab-content.active { display: block; }
-        /* Chat Modal Styles */
         .chat-messages { max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
         .message { margin-bottom: 10px; }
         .message strong { color: #2196F3; }
     </style>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
+        import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDNAIqIwEm_FNyk6UZWKU4wnnispJ7ARdw",
+            authDomain: "nearbyshare-f6a42.firebaseapp.com",
+            projectId: "nearbyshare-f6a42",
+            storageBucket: "nearbyshare-f6a42.firebasestorage.app",
+            messagingSenderId: "467514027767",
+            appId: "1:467514027767:web:cdb5f4d6327f2d617eadf2",
+            measurementId: "G-19JPFJ887R"
+        };
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        window.auth = auth;
+        window.db = db;
+        window.collection = collection;
+        window.addDoc = addDoc;
+        window.getDocs = getDocs;
+        window.doc = doc;
+        window.updateDoc = updateDoc;
+        window.deleteDoc = deleteDoc;
+        window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
+        window.signInWithEmailAndPassword = signInWithEmailAndPassword;
+        window.signOut = signOut;
+        window.onAuthStateChanged = onAuthStateChanged;
+    </script>
 </head>
 <body>
     <header>
@@ -76,7 +105,6 @@
         <div id="itemsList"></div>
     </div>
     
-    <!-- Auth Modal -->
     <div id="authModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeAuth()">&times;</span>
@@ -85,8 +113,8 @@
             <div id="loginTab" class="tab-content active">
                 <h3>Login</h3>
                 <div class="form-group">
-                    <label for="loginUsername">Username:</label>
-                    <input type="text" id="loginUsername" required>
+                    <label for="loginUsername">Email:</label>
+                    <input type="email" id="loginUsername" required>
                 </div>
                 <div class="form-group">
                     <label for="loginPassword">Password:</label>
@@ -97,8 +125,8 @@
             <div id="signupTab" class="tab-content">
                 <h3>Sign Up</h3>
                 <div class="form-group">
-                    <label for="signupUsername">Username:</label>
-                    <input type="text" id="signupUsername" required>
+                    <label for="signupUsername">Email:</label>
+                    <input type="email" id="signupUsername" required>
                 </div>
                 <div class="form-group">
                     <label for="signupPassword">Password:</label>
@@ -109,7 +137,6 @@
         </div>
     </div>
     
-    <!-- Chat Modal -->
     <div id="chatModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeChat()">&times;</span>
@@ -127,77 +154,59 @@
     <script>
         let userLat, userLng;
         let currentUser = null;
-        let items = JSON.parse(localStorage.getItem('nearbyItems')) || [];
-        let users = JSON.parse(localStorage.getItem('users')) || [];
+        let items = [];
         let currentChatIndex = null;
-        
-        // Check if user is logged in
-        function checkLogin() {
-            const loggedInUser = localStorage.getItem('currentUser');
-            if (loggedInUser) {
-                currentUser = loggedInUser;
+
+        onAuthStateChanged(window.auth, (user) => {
+            if (user) {
+                currentUser = user.email;
                 document.getElementById('mainContent').style.display = 'block';
                 document.getElementById('logoutBtn').style.display = 'block';
                 document.getElementById('authModal').style.display = 'none';
+                loadItems();
                 initLocation();
             } else {
                 document.getElementById('authModal').style.display = 'block';
+                document.getElementById('mainContent').style.display = 'none';
+                document.getElementById('logoutBtn').style.display = 'none';
             }
-        }
-        
-        // Signup
-        function signup() {
-            const username = document.getElementById('signupUsername').value;
+        });
+
+        async function signup() {
+            const email = document.getElementById('signupUsername').value;
             const password = document.getElementById('signupPassword').value;
-            if (username && password) {
-                if (users.find(u => u.username === username)) {
-                    alert('Username already exists.');
-                    return;
-                }
-                users.push({ username, password });
-                localStorage.setItem('users', JSON.stringify(users));
+            try {
+                await createUserWithEmailAndPassword(window.auth, email, password);
                 alert('Account created! Please login.');
                 switchTab('login');
+            } catch (error) {
+                alert('Error: ' + error.message);
             }
         }
-        
-        // Login
-        function login() {
-            const username = document.getElementById('loginUsername').value;
+
+        async function login() {
+            const email = document.getElementById('loginUsername').value;
             const password = document.getElementById('loginPassword').value;
-            const user = users.find(u => u.username === username && u.password === password);
-            if (user) {
-                currentUser = username;
-                localStorage.setItem('currentUser', username);
-                checkLogin();
-            } else {
-                alert('Invalid credentials.');
+            try {
+                await signInWithEmailAndPassword(window.auth, email, password);
+            } catch (error) {
+                alert('Error: ' + error.message);
             }
         }
-        
-        // Logout
-        function logout() {
-            currentUser = null;
-            localStorage.removeItem('currentUser');
-            document.getElementById('mainContent').style.display = 'none';
-            document.getElementById('logoutBtn').style.display = 'none';
-            checkLogin();
+
+        async function logout() {
+            await signOut(window.auth);
         }
-        
-        // Switch tabs
+
         function switchTab(tab) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
             document.getElementById(`${tab}Tab`).classList.add('active');
         }
-        
-        // Close auth modal
-        function closeAuth() {
-            // Prevent closing if not logged in
-        }
-        
-        // Get user's location
+
+        function closeAuth() {}
+
         function initLocation() {
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(function(position) {
@@ -212,18 +221,25 @@
                 document.getElementById('locationStatus').textContent = 'Geolocation not supported.';
             }
         }
-        
-        // Haversine formula to calculate distance in km
+
         function getDistance(lat1, lng1, lat2, lng2) {
-            const R = 6371; // Earth's radius in km
+            const R = 6371;
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLng = (lng2 - lng1) * Math.PI / 180;
             const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng/2) * Math.sin(dLng/2);
             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
             return R * c;
         }
-        
-        // Function to display items within 5km
+
+        async function loadItems() {
+            const querySnapshot = await getDocs(collection(window.db, 'items'));
+            items = [];
+            querySnapshot.forEach((doc) => {
+                items.push({ id: doc.id, ...doc.data() });
+            });
+            displayItems();
+        }
+
         function displayItems() {
             if (!userLat || !userLng) return;
             const list = document.getElementById('itemsList');
@@ -238,7 +254,7 @@
                         <p><strong>Category:</strong> ${item.category}</p>
                         <p>${item.description}</p>
                         <p><strong>Distance:</strong> ${distance.toFixed(2)} km away | <strong>Shared by:</strong> ${item.user}</p>
-                        <button class="claim-btn" onclick="claimItem(${index})">Claim/Contact</button>
+                        <button class="claim-btn" onclick="claimItem('${item.id}')">Claim/Contact</button>
                         <button class="chat-btn" onclick="openChat(${index})">Chat</button>
                     `;
                     list.appendChild(itemDiv);
@@ -248,9 +264,8 @@
                 list.innerHTML = '<p>No nearby items found. Share one!</p>';
             }
         }
-        
-        // Handle form submission
-        document.getElementById('postForm').addEventListener('submit', function(e) {
+
+        document.getElementById('postForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             if (!userLat || !userLng) {
                 alert('Location not available. Enable geolocation.');
@@ -259,37 +274,37 @@
             const title = document.getElementById('title').value;
             const category = document.getElementById('category').value;
             const description = document.getElementById('description').value;
-            items.push({ title, category, description, lat: userLat, lng: userLng, user: currentUser, messages: [] });
-            localStorage.setItem('nearbyItems', JSON.stringify(items));
-            displayItems();
-            this.reset();
-            alert('Item shared nearby!');
+            try {
+                await addDoc(collection(window.db, 'items'), {
+                    title, category, description, lat: userLat, lng: userLng, user: currentUser, messages: []
+                });
+                loadItems();
+                this.reset();
+                alert('Item shared nearby!');
+            } catch (error) {
+                alert('Error sharing: ' + error.message);
+            }
         });
-        
-        // Claim item (simple remove for demo)
-        function claimItem(index) {
-            if (confirm('Claim this item? In a real app, this would contact the sharer.')) {
-                items.splice(index, 1);
-                localStorage.setItem('nearbyItems', JSON.stringify(items));
-                displayItems();
+
+        async function claimItem(id) {
+            if (confirm('Claim this item?')) {
+                await deleteDoc(doc(window.db, 'items', id));
+                loadItems();
                 alert('Item claimed!');
             }
         }
-        
-        // Open chat modal
+
         function openChat(index) {
             currentChatIndex = index;
             document.getElementById('chatModal').style.display = 'block';
             displayMessages();
         }
-        
-        // Close chat modal
+
         function closeChat() {
             document.getElementById('chatModal').style.display = 'none';
             currentChatIndex = null;
         }
-        
-        // Display messages in chat
+
         function displayMessages() {
             const messagesDiv = document.getElementById('chatMessages');
             messagesDiv.innerHTML = '';
@@ -302,21 +317,19 @@
                 });
             }
         }
-        
-        // Send message
-        function sendMessage() {
+
+        async function sendMessage() {
             const input = document.getElementById('chatInput');
             const message = input.value.trim();
             if (message && currentChatIndex !== null) {
-                items[currentChatIndex].messages.push(message);
-                localStorage.setItem('nearbyItems', JSON.stringify(items));
+                const item = items[currentChatIndex];
+                const updatedMessages = [...item.messages, message];
+                await updateDoc(doc(window.db, 'items', item.id), { messages: updatedMessages });
+                loadItems();
                 displayMessages();
                 input.value = '';
             }
         }
-        
-        // Initial check
-        checkLogin();
     </script>
 </body>
 </html>
